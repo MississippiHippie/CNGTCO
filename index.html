@@ -1,0 +1,1964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetShift — Diesel → CNG TCO Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=IBM+Plex+Mono:wght@400;500&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0d0f;
+    --surface: #111518;
+    --surface2: #181d21;
+    --surface3: #1f262c;
+    --border: #252d34;
+    --border-bright: #2e3a44;
+    --diesel: #e87b2e;
+    --diesel-dim: #7a3d0e;
+    --cng: #2eb87a;
+    --cng-dim: #0e5c38;
+    --accent: #4fc3f7;
+    --accent-dim: #1a4a5e;
+    --warn: #f0c040;
+    --text: #d4dce3;
+    --text-dim: #7a8a96;
+    --text-bright: #eef2f5;
+    --red: #e05252;
+    --mono: 'IBM Plex Mono', monospace;
+    --display: 'Barlow Condensed', sans-serif;
+    --body: 'Barlow', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  header {
+    background: var(--surface);
+    border-bottom: 2px solid var(--border-bright);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 26px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-bright);
+  }
+  .logo span { color: var(--cng); }
+  .header-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .tab {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 6px 16px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    cursor: pointer;
+    background: none;
+    color: var(--text-dim);
+    transition: all .15s;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+
+  /* Layout */
+  .app {
+    display: flex;
+    height: calc(100vh - 60px);
+  }
+  .sidebar {
+    width: 380px;
+    min-width: 340px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--bg);
+  }
+
+  /* Sidebar sections */
+  .section {
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header {
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    background: var(--surface2);
+    transition: background .1s;
+  }
+  .section-header:hover { background: var(--surface3); }
+  .section-title {
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-bright);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-icon {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .section-icon.diesel { background: var(--diesel); }
+  .section-icon.cng { background: var(--cng); }
+  .section-icon.fleet { background: var(--warn); }
+  .section-icon.import { background: var(--accent); }
+  .section-body {
+    padding: 16px 20px;
+    display: none;
+  }
+  .section-body.open { display: block; }
+  .chevron {
+    font-size: 10px;
+    color: var(--text-dim);
+    transition: transform .2s;
+  }
+  .section-header.open .chevron { transform: rotate(90deg); }
+
+  /* Form fields */
+  .field {
+    margin-bottom: 14px;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text-dim);
+    letter-spacing: .5px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  input[type=number], input[type=text], select {
+    width: 100%;
+    background: var(--surface3);
+    border: 1px solid var(--border-bright);
+    border-radius: 4px;
+    padding: 8px 10px;
+    color: var(--text-bright);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color .15s;
+    -moz-appearance: textfield;
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  input:focus, select:focus { border-color: var(--accent); }
+  .input-unit {
+    position: relative;
+  }
+  .input-unit input { padding-right: 42px; }
+  .input-unit .unit {
+    position: absolute;
+    right: 10px; top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+  select option { background: var(--surface3); }
+
+  /* Range slider */
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--surface3);
+    border-radius: 2px;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  .slider-row input[type=range] { flex: 1; }
+  .slider-val {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    min-width: 40px;
+    text-align: right;
+  }
+
+  /* Import zone */
+  .import-zone {
+    border: 2px dashed var(--border-bright);
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    margin-bottom: 12px;
+  }
+  .import-zone:hover, .import-zone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .import-zone .iz-icon { font-size: 28px; margin-bottom: 6px; }
+  .import-zone .iz-label {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .import-zone .iz-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .import-zone input[type=file] { display: none; }
+
+  .import-type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .import-type-btn {
+    padding: 10px 8px;
+    border: 1px solid var(--border-bright);
+    border-radius: 4px;
+    background: var(--surface3);
+    color: var(--text-dim);
+    font-family: var(--display);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-align: center;
+    transition: all .15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .import-type-btn .itb-icon { font-size: 18px; }
+  .import-type-btn:hover, .import-type-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .paste-area {
+    width: 100%;
+    background: var(--surface3);
+    border: 1px solid var(--border-bright);
+    border-radius: 4px;
+    padding: 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    resize: vertical;
+    min-height: 80px;
+    outline: none;
+  }
+  .paste-area:focus { border-color: var(--accent); }
+
+  .btn {
+    display: inline-block;
+    padding: 8px 18px;
+    border-radius: 4px;
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: none;
+    transition: all .15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+  .btn-primary:hover { background: #7dd3fc; }
+  .btn-success {
+    background: var(--cng);
+    color: #000;
+  }
+  .btn-success:hover { background: #4ade80; }
+  .btn-outline {
+    background: none;
+    border: 1px solid var(--border-bright);
+    color: var(--text-dim);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-block { width: 100%; text-align: center; display: block; }
+  .btn-sm { padding: 5px 12px; font-size: 11px; }
+
+  .parse-status {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    display: none;
+  }
+  .parse-status.ok { background: rgba(46,184,122,.15); border: 1px solid var(--cng); color: var(--cng); display: block; }
+  .parse-status.err { background: rgba(224,82,82,.15); border: 1px solid var(--red); color: var(--red); display: block; }
+
+  /* MAIN panels */
+  .panel-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .kpi-card.savings::before { background: var(--cng); }
+  .kpi-card.payback::before { background: var(--warn); }
+  .kpi-card.co2::before { background: var(--accent); }
+  .kpi-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 36px;
+    line-height: 1;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+  }
+  .kpi-value.positive { color: var(--cng); }
+  .kpi-value.warn { color: var(--warn); }
+  .kpi-value.accent { color: var(--accent); }
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  /* Chart area */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+  }
+  .chart-title {
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-bright);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .chart-legend {
+    display: flex;
+    gap: 16px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  canvas { display: block; }
+
+  /* Cost breakdown table */
+  .breakdown-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .breakdown-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .breakdown-table th:not(:first-child) { text-align: right; }
+  .breakdown-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .breakdown-table td:not(:first-child) { text-align: right; font-family: var(--mono); }
+  .breakdown-table tr:last-child td { border-bottom: none; }
+  .breakdown-table .total-row td {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text-bright);
+    padding-top: 14px;
+    border-top: 2px solid var(--border-bright);
+  }
+  .td-diesel { color: var(--diesel) !important; }
+  .td-cng { color: var(--cng) !important; }
+  .td-save { color: var(--cng) !important; }
+  .td-neg { color: var(--red) !important; }
+
+  /* Sensitivity */
+  .sensitivity-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .sens-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 14px 16px;
+  }
+  .sens-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .sens-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .sens-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--surface3);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .sens-bar { height: 100%; border-radius: 3px; transition: width .3s; }
+  .sens-val {
+    font-family: var(--mono);
+    font-size: 11px;
+    min-width: 52px;
+    text-align: right;
+  }
+
+  /* Year-by-year */
+  .year-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .year-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--text-dim);
+    padding: 6px 10px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+  }
+  .year-table th:first-child { text-align: left; }
+  .year-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid rgba(37,45,52,.6);
+    font-family: var(--mono);
+    text-align: right;
+    color: var(--text-dim);
+  }
+  .year-table td:first-child { text-align: left; font-family: var(--body); color: var(--text); }
+  .year-table tr.payback-row td { background: rgba(46,184,122,.07); color: var(--cng); }
+  .year-table .cumulative-positive { color: var(--cng); }
+  .year-table .cumulative-negative { color: var(--red); }
+
+  /* Tabs content */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Toggle switch */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .toggle-label {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .toggle {
+    position: relative;
+    width: 36px; height: 20px;
+    cursor: pointer;
+  }
+  .toggle input { display: none; }
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--surface3);
+    border: 1px solid var(--border-bright);
+    border-radius: 10px;
+    transition: background .2s;
+  }
+  .toggle input:checked ~ .toggle-track { background: var(--cng); border-color: var(--cng); }
+  .toggle-thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 12px; height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    transition: left .2s;
+  }
+  .toggle input:checked ~ .toggle-thumb { left: 19px; }
+
+  /* Fleet summary strip */
+  .fleet-strip {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .fleet-stat {
+    flex: 1;
+    text-align: center;
+  }
+  .fleet-stat-val {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--text-bright);
+  }
+  .fleet-stat-lbl {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+  .fleet-divider {
+    width: 1px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  /* Alerts */
+  .alert {
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    border-left: 3px solid;
+  }
+  .alert-info { background: rgba(79,195,247,.08); border-color: var(--accent); color: var(--accent); }
+  .alert-warn { background: rgba(240,192,64,.08); border-color: var(--warn); color: var(--warn); }
+  .alert-success { background: rgba(46,184,122,.08); border-color: var(--cng); color: var(--cng); }
+
+  .section-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  .help-text {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: -8px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+
+  /* Responsive fix */
+  @media (max-width: 1100px) {
+    .panel-grid { grid-template-columns: 1fr 1fr; }
+    .sensitivity-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 820px) {
+    .app { flex-direction: column; height: auto; }
+    .sidebar { width: 100%; min-width: 0; }
+    .panel-grid { grid-template-columns: 1fr; }
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+  }
+  .tag-cng { background: rgba(46,184,122,.15); color: var(--cng); border: 1px solid var(--cng-dim); }
+  .tag-diesel { background: rgba(232,123,46,.15); color: var(--diesel); border: 1px solid var(--diesel-dim); }
+
+  .import-parsed-summary {
+    background: var(--surface3);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+  .import-parsed-summary strong { color: var(--accent); }
+
+  .fuel-price-live {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--cng);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .3; }
+  }
+  .live-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .waterfall-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .waterfall-label {
+    width: 140px;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text-dim);
+    flex-shrink: 0;
+    text-align: right;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+  .waterfall-track {
+    flex: 1;
+    height: 24px;
+    background: var(--surface3);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .waterfall-fill {
+    position: absolute;
+    top: 0; bottom: 0;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: width .4s ease;
+  }
+  .waterfall-fill.positive { background: rgba(46,184,122,.3); color: var(--cng); left: 0; }
+  .waterfall-fill.negative { background: rgba(224,82,82,.25); color: var(--red); right: 0; }
+  .waterfall-fill.neutral { background: rgba(240,192,64,.2); color: var(--warn); left: 0; }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Fleet<span>Shift</span></div>
+  <div class="tabs" id="mainTabs">
+    <button class="tab active" onclick="showTab('inputs')">Inputs</button>
+    <button class="tab" onclick="showTab('results')">Results</button>
+    <button class="tab" onclick="showTab('cashflow')">Cash Flow</button>
+    <button class="tab" onclick="showTab('sensitivity')">Sensitivity</button>
+  </div>
+  <div class="header-badge">DIESEL → CNG TCO TOOL v2.0</div>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="tabInputs">
+
+    <!-- Fleet Config -->
+    <div class="section">
+      <div class="section-header open" onclick="toggleSection(this)">
+        <div class="section-title"><span class="section-icon fleet"></span>Fleet Configuration</div>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="section-body open">
+        <div class="field-row">
+          <div class="field">
+            <label>Trucks in Fleet</label>
+            <div class="input-unit">
+              <input type="number" id="fleetSize" value="10" min="1" onchange="calc()">
+              <span class="unit">units</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>CNG Conversion %</label>
+            <div class="slider-row">
+              <input type="range" id="convPct" min="10" max="100" step="10" value="100" oninput="document.getElementById('convPctVal').textContent=this.value+'%'; calc()">
+              <span class="slider-val" id="convPctVal">100%</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Analysis Period</label>
+            <div class="input-unit">
+              <input type="number" id="years" value="5" min="1" max="15" onchange="calc()">
+              <span class="unit">yrs</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Miles/Truck/Year</label>
+            <div class="input-unit">
+              <input type="number" id="annualMiles" value="120000" onchange="calc()">
+              <span class="unit">mi</span>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Discount Rate (NPV)</label>
+          <div class="slider-row">
+            <input type="range" id="discountRate" min="0" max="15" step="0.5" value="7" oninput="document.getElementById('discountRateVal').textContent=this.value+'%'; calc()">
+            <span class="slider-val" id="discountRateVal">7%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diesel Inputs -->
+    <div class="section">
+      <div class="section-header open" onclick="toggleSection(this)">
+        <div class="section-title"><span class="section-icon diesel"></span>Diesel Truck Costs</div>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="section-body open">
+        <div class="field-row">
+          <div class="field">
+            <label>Purchase Price</label>
+            <div class="input-unit">
+              <input type="number" id="dieselPrice" value="145000" onchange="calc()">
+              <span class="unit">$</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Resale Value (EOL)</label>
+            <div class="input-unit">
+              <input type="number" id="dieselResale" value="30000" onchange="calc()">
+              <span class="unit">$</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Fuel Economy</label>
+            <div class="input-unit">
+              <input type="number" id="dieselMPG" value="6.5" step="0.1" onchange="calc()">
+              <span class="unit">mpg</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Diesel Price ($/gal)</label>
+            <div class="input-unit">
+              <input type="number" id="dieselFuelCost" value="4.15" step="0.01" onchange="calc()">
+              <span class="unit">$/g</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Annual Maintenance</label>
+            <div class="input-unit">
+              <input type="number" id="dieselMaint" value="18000" onchange="calc()">
+              <span class="unit">$/yr</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>DEF Cost ($/yr)</label>
+            <div class="input-unit">
+              <input type="number" id="defCost" value="2200" onchange="calc()">
+              <span class="unit">$/yr</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Registration ($/yr)</label>
+            <div class="input-unit">
+              <input type="number" id="dieselReg" value="1800" onchange="calc()">
+              <span class="unit">$/yr</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Insurance ($/yr)</label>
+            <div class="input-unit">
+              <input type="number" id="dieselIns" value="8500" onchange="calc()">
+              <span class="unit">$/yr</span>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Fuel Price Escalation (%/yr)</label>
+          <div class="slider-row">
+            <input type="range" id="dieselEsc" min="-5" max="15" step="0.5" value="3" oninput="document.getElementById('dieselEscVal').textContent=this.value+'%'; calc()">
+            <span class="slider-val" id="dieselEscVal">3%</span>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Carbon Tax ($/ton CO₂)</label>
+            <div class="input-unit">
+              <input type="number" id="dieselCarbon" value="0" step="5" onchange="calc()">
+              <span class="unit">$/t</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Idle Fuel (gal/yr)</label>
+            <div class="input-unit">
+              <input type="number" id="dieselIdle" value="2000" onchange="calc()">
+              <span class="unit">gal</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CNG Inputs -->
+    <div class="section">
+      <div class="section-header open" onclick="toggleSection(this)">
+        <div class="section-title"><span class="section-icon cng"></span>CNG Truck Costs</div>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="section-body open">
+        <div class="field-row">
+          <div class="field">
+            <label>Purchase Price</label>
+            <div class="input-unit">
+              <input type="number" id="cngPrice" value="175000" onchange="calc()">
+              <span class="unit">$</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Resale Value (EOL)</label>
+            <div class="input-unit">
+              <input type="number" id="cngResale" value="28000" onchange="calc()">
+              <span class="unit">$</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Fuel Economy</label>
+            <div class="input-unit">
+              <input type="number" id="cngMPGE" value="7.0" step="0.1" onchange="calc()">
+              <span class="unit">mpge</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>CNG Price ($/DGE)</label>
+            <div class="input-unit">
+              <input type="number" id="cngFuelCost" value="2.85" step="0.01" onchange="calc()">
+              <span class="unit">$/dge</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Annual Maintenance</label>
+            <div class="input-unit">
+              <input type="number" id="cngMaint" value="14000" onchange="calc()">
+              <span class="unit">$/yr</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Registration ($/yr)</label>
+            <div class="input-unit">
+              <input type="number" id="cngReg" value="1800" onchange="calc()">
+              <span class="unit">$/yr</span>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Insurance ($/yr)</label>
+            <div class="input-unit">
+              <input type="number" id="cngIns" value="8500" onchange="calc()">
+              <span class="unit">$/yr</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Fuel Esc. (%/yr)</label>
+            <div class="slider-row" style="margin-top:8px">
+              <input type="range" id="cngEsc" min="-5" max="15" step="0.5" value="2" oninput="document.getElementById('cngEscVal').textContent=this.value+'%'; calc()">
+              <span class="slider-val" id="cngEscVal">2%</span>
+            </div>
+          </div>
+        </div>
+        <div class="section-divider"></div>
+        <div class="field">
+          <label>Infrastructure Cost (Total)</label>
+          <div class="input-unit">
+            <input type="number" id="infraCost" value="250000" onchange="calc()">
+            <span class="unit">$</span>
+          </div>
+        </div>
+        <p class="help-text">Station / dispenser capex amortized over analysis period</p>
+        <div class="field-row">
+          <div class="field">
+            <label>Infra Maint ($/yr)</label>
+            <div class="input-unit">
+              <input type="number" id="infraMaint" value="8000" onchange="calc()">
+              <span class="unit">$/yr</span>
+            </div>
+          </div>
+          <div class="field">
+            <label>Driver Training ($)</label>
+            <div class="input-unit">
+              <input type="number" id="training" value="5000" onchange="calc()">
+              <span class="unit">$</span>
+            </div>
+          </div>
+        </div>
+        <div class="section-divider"></div>
+        <div class="field">
+          <label>Incentives / Grants (Total $)</label>
+          <div class="input-unit">
+            <input type="number" id="incentives" value="50000" onchange="calc()">
+            <span class="unit">$</span>
+          </div>
+        </div>
+        <p class="help-text">Federal/state alt-fuel grants, HVIP, CMAQ, etc.</p>
+        <div class="field">
+          <label>Tax Credit (per truck $)</label>
+          <div class="input-unit">
+            <input type="number" id="taxCredit" value="0" onchange="calc()">
+            <span class="unit">$</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import Data -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <div class="section-title"><span class="section-icon import"></span>Import Data</div>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="section-body">
+        <div class="import-type-grid">
+          <div class="import-type-btn active" id="btnExcel" onclick="setImportType('excel')">
+            <span class="itb-icon">📊</span>Excel / CSV
+          </div>
+          <div class="import-type-btn" id="btnTelematics" onclick="setImportType('telematics')">
+            <span class="itb-icon">📡</span>Telematics
+          </div>
+          <div class="import-type-btn" id="btnFuelCard" onclick="setImportType('fuelcard')">
+            <span class="itb-icon">💳</span>Fuel Card
+          </div>
+          <div class="import-type-btn" id="btnPaste" onclick="setImportType('paste')">
+            <span class="itb-icon">📋</span>Paste CSV
+          </div>
+        </div>
+
+        <!-- Excel -->
+        <div id="importExcel">
+          <div class="import-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <div class="iz-icon">⬆️</div>
+            <div class="iz-label">Drop Excel / CSV here</div>
+            <div class="iz-sub">Supports .xlsx, .xls, .csv • Fleet telematics exports</div>
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" onchange="handleFileUpload(event)">
+          </div>
+          <div id="parseStatus" class="parse-status"></div>
+          <div id="importSummary" class="import-parsed-summary" style="display:none"></div>
+          <p class="help-text" style="margin-top:8px">Expected columns: miles_per_year, fuel_gallons, fuel_cost, maintenance_cost</p>
+          <button class="btn btn-outline btn-sm" onclick="downloadTemplate()">⬇ Download Template CSV</button>
+        </div>
+
+        <!-- Telematics -->
+        <div id="importTelematics" style="display:none">
+          <div class="field">
+            <label>Telematics Provider</label>
+            <select onchange="prefillTelematics(this.value)">
+              <option value="">— Select Provider —</option>
+              <option value="samsara">Samsara</option>
+              <option value="geotab">Geotab</option>
+              <option value="verizon">Verizon Connect</option>
+              <option value="omnitracs">Omnitracs</option>
+              <option value="peoplenet">PeopleNet</option>
+              <option value="custom">Custom API</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>API Key / Token</label>
+            <input type="text" placeholder="Paste API key..." id="telematicsKey">
+          </div>
+          <div class="field">
+            <label>Fleet Group / Tag Filter</label>
+            <input type="text" placeholder="e.g. TRUCK_GROUP_1" id="telematicsGroup">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Date From</label>
+              <input type="text" placeholder="YYYY-MM-DD" id="telFrom">
+            </div>
+            <div class="field">
+              <label>Date To</label>
+              <input type="text" placeholder="YYYY-MM-DD" id="telTo">
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="simulateTelematicsPull()">Pull Telematics Data</button>
+          <div id="telStatus" class="parse-status"></div>
+          <div id="telSummary" class="import-parsed-summary" style="display:none"></div>
+        </div>
+
+        <!-- Fuel Card -->
+        <div id="importFuelCard" style="display:none">
+          <div class="field">
+            <label>Fuel Card Network</label>
+            <select onchange="prefillFuelCard(this.value)">
+              <option value="">— Select Network —</option>
+              <option value="wex">WEX Fleet</option>
+              <option value="voyager">Voyager (US Bank)</option>
+              <option value="comdata">Comdata</option>
+              <option value="fuelman">Fuelman</option>
+              <option value="tcheck">T-Check</option>
+              <option value="custom">Custom Export</option>
+            </select>
+          </div>
+          <div class="import-zone" onclick="document.getElementById('fuelCardFile').click()">
+            <div class="iz-icon">💳</div>
+            <div class="iz-label">Upload Fuel Card Export</div>
+            <div class="iz-sub">.csv or .xlsx statement export</div>
+            <input type="file" id="fuelCardFile" accept=".csv,.xlsx" onchange="handleFuelCardUpload(event)">
+          </div>
+          <div id="fcStatus" class="parse-status"></div>
+          <div id="fcSummary" class="import-parsed-summary" style="display:none"></div>
+        </div>
+
+        <!-- Paste -->
+        <div id="importPaste" style="display:none">
+          <label class="field"><span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Paste CSV Data</span>
+          <textarea class="paste-area" id="pasteArea" placeholder="miles_per_year,fuel_gallons,fuel_cost,maintenance_cost&#10;120000,18461,76558,18000&#10;115000,17692,73424,17500"></textarea></label>
+          <button class="btn btn-primary btn-sm" onclick="parsePaste()">Parse Data</button>
+          <div id="pasteStatus" class="parse-status"></div>
+          <div id="pasteSummary" class="import-parsed-summary" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toggles -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <div class="section-title"><span class="section-icon"></span>Advanced Options</div>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="section-body">
+        <div class="toggle-row">
+          <span class="toggle-label">Include Downtime Costs</span>
+          <label class="toggle"><input type="checkbox" id="toggleDowntime" onchange="calc()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+        <div class="field" id="downtimeField" style="display:none">
+          <label>CNG Downtime Premium (hrs/yr)</label>
+          <div class="input-unit"><input type="number" id="downtimeHrs" value="12" onchange="calc()"><span class="unit">hrs</span></div>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Driver Pay Differential</span>
+          <label class="toggle"><input type="checkbox" id="toggleDriver" onchange="calc()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Include LCFS / RIN Credits</span>
+          <label class="toggle"><input type="checkbox" id="toggleLCFS" onchange="calc()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+        <div class="field" id="lcfsField" style="display:none">
+          <label>LCFS Credit Value ($/yr/truck)</label>
+          <div class="input-unit"><input type="number" id="lcfsVal" value="3200" onchange="calc()"><span class="unit">$/yr</span></div>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">NPV / Discounted Analysis</span>
+          <label class="toggle"><input type="checkbox" id="toggleNPV" checked onchange="calc()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Show CO₂ Reduction</span>
+          <label class="toggle"><input type="checkbox" id="toggleCO2" checked onchange="calc()"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding:16px 20px;">
+      <button class="btn btn-success btn-block" onclick="showTab('results')">▶ VIEW RESULTS →</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+
+    <!-- Results Tab -->
+    <div id="tabResults" class="tab-panel active">
+      <div class="fleet-strip" id="fleetStrip">
+        <div class="fleet-stat"><div class="fleet-stat-val" id="stripTrucks">10</div><div class="fleet-stat-lbl">Trucks Converted</div></div>
+        <div class="fleet-divider"></div>
+        <div class="fleet-stat"><div class="fleet-stat-val" id="stripMiles">1.2M</div><div class="fleet-stat-lbl">Annual Fleet Miles</div></div>
+        <div class="fleet-divider"></div>
+        <div class="fleet-stat"><div class="fleet-stat-val" id="stripFuel">$—</div><div class="fleet-stat-lbl">Annual Fuel Cost Saved</div></div>
+        <div class="fleet-divider"></div>
+        <div class="fleet-stat"><div class="fleet-stat-val" id="stripCO2">—</div><div class="fleet-stat-lbl">Tons CO₂ Reduced/yr</div></div>
+        <div class="fleet-divider"></div>
+        <div class="fleet-stat"><div class="fleet-stat-val" id="stripNPV" style="color:var(--cng)">$—</div><div class="fleet-stat-lbl">NPV Fleet Savings</div></div>
+      </div>
+
+      <div class="panel-grid">
+        <div class="kpi-card savings">
+          <div class="kpi-label">Total TCO Savings (Fleet)</div>
+          <div class="kpi-value positive" id="kpiSavings">$—</div>
+          <div class="kpi-sub" id="kpiSavingsSub">over analysis period</div>
+        </div>
+        <div class="kpi-card payback">
+          <div class="kpi-label">Simple Payback Period</div>
+          <div class="kpi-value warn" id="kpiPayback">—</div>
+          <div class="kpi-sub" id="kpiPaybackSub">years to break even</div>
+        </div>
+        <div class="kpi-card co2">
+          <div class="kpi-label">Total CO₂ Avoidance</div>
+          <div class="kpi-value accent" id="kpiCO2">—</div>
+          <div class="kpi-sub">tons over analysis period</div>
+        </div>
+      </div>
+
+      <!-- Per-truck waterfall -->
+      <div class="chart-card">
+        <div class="chart-title">
+          Cost Driver Breakdown — Per Truck Per Year
+          <div style="font-family:var(--mono);font-size:11px;font-weight:400;color:var(--text-dim)">DELTA: CNG vs DIESEL</div>
+        </div>
+        <div id="waterfallChart"></div>
+      </div>
+
+      <!-- Annual cost comparison chart -->
+      <div class="chart-card">
+        <div class="chart-title">
+          Annual Total Cost of Ownership — Full Fleet
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--diesel)"></div>Diesel</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--cng)"></div>CNG</div>
+          </div>
+        </div>
+        <canvas id="annualChart" height="220"></canvas>
+      </div>
+
+      <!-- Breakdown Table -->
+      <div class="chart-card">
+        <div class="chart-title">Annual Cost Breakdown — Per Truck</div>
+        <table class="breakdown-table" id="breakdownTable">
+          <thead>
+            <tr>
+              <th>Cost Category</th>
+              <th class="td-diesel">Diesel</th>
+              <th class="td-cng">CNG</th>
+              <th>Δ Savings</th>
+            </tr>
+          </thead>
+          <tbody id="breakdownBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Cash Flow Tab -->
+    <div id="tabCashflow" class="tab-panel">
+      <div class="chart-card">
+        <div class="chart-title">
+          Cumulative Net Cash Flow — Full Fleet
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--cng)"></div>Cumulative Savings</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div>Breakeven</div>
+          </div>
+        </div>
+        <canvas id="cashflowChart" height="250"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Year-by-Year Analysis</div>
+        <table class="year-table" id="yearTable">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th>Diesel TCO</th>
+              <th>CNG TCO</th>
+              <th>Annual Δ</th>
+              <th>Cumulative Δ</th>
+              <th>NPV Cumulative</th>
+            </tr>
+          </thead>
+          <tbody id="yearBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Sensitivity Tab -->
+    <div id="tabSensitivity" class="tab-panel">
+      <div class="alert alert-info">Sensitivity shows how key variables affect 5-year fleet TCO savings. Green = favors CNG; Red = reduces advantage.</div>
+
+      <div class="chart-card">
+        <div class="chart-title">Tornado Chart — 5-Year Savings Impact</div>
+        <canvas id="tornadoChart" height="320"></canvas>
+      </div>
+
+      <div class="chart-card" style="margin-top:16px">
+        <div class="chart-title">Break-Even Fuel Price Matrix</div>
+        <div id="fuelMatrix"></div>
+      </div>
+
+      <div class="sensitivity-grid" style="margin-top:16px">
+        <div class="sens-card">
+          <div class="sens-label">Fuel Price Sensitivity</div>
+          <div id="fuelSens"></div>
+        </div>
+        <div class="sens-card">
+          <div class="sens-label">Annual Miles Sensitivity</div>
+          <div id="milesSens"></div>
+        </div>
+        <div class="sens-card">
+          <div class="sens-label">Infrastructure Cost Sensitivity</div>
+          <div id="infraSens"></div>
+        </div>
+        <div class="sens-card">
+          <div class="sens-label">Fleet Size Sensitivity</div>
+          <div id="fleetSens"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ===================== STATE =====================
+let importedData = null;
+let currentImportType = 'excel';
+
+// ===================== UI UTILS =====================
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const panels = {inputs:'tabInputs', results:'tabResults', cashflow:'tabCashflow', sensitivity:'tabSensitivity'};
+  const tabBtns = document.querySelectorAll('.tab');
+  const tabMap = ['inputs','results','cashflow','sensitivity'];
+  tabBtns[tabMap.indexOf(name)]?.classList.add('active');
+  const panel = document.getElementById(panels[name]);
+  if (panel) { panel.classList.add('active'); }
+  if (name === 'sidebar') { /* handled by tabs for sidebar */ }
+}
+
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const open = body.classList.toggle('open');
+  header.classList.toggle('open', open);
+}
+
+function setImportType(type) {
+  currentImportType = type;
+  ['excel','telematics','fuelcard','paste'].forEach(t => {
+    document.getElementById('btn' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.remove('active');
+    document.getElementById('importExcel').style.display = 'none';
+    document.getElementById('importTelematics').style.display = 'none';
+    document.getElementById('importFuelCard').style.display = 'none';
+    document.getElementById('importPaste').style.display = 'none';
+  });
+  document.getElementById('btnExcel').classList.remove('active');
+  document.getElementById('btnTelematics').classList.remove('active');
+  document.getElementById('btnFuelCard').classList.remove('active');
+  document.getElementById('btnPaste').classList.remove('active');
+  const map = {excel:'btnExcel',telematics:'btnTelematics',fuelcard:'btnFuelCard',paste:'btnPaste'};
+  const panmap = {excel:'importExcel',telematics:'importTelematics',fuelcard:'importFuelCard',paste:'importPaste'};
+  document.getElementById(map[type])?.classList.add('active');
+  document.getElementById(panmap[type]).style.display = 'block';
+}
+
+document.getElementById('toggleDowntime').addEventListener('change', function() {
+  document.getElementById('downtimeField').style.display = this.checked ? 'block' : 'none';
+});
+document.getElementById('toggleLCFS').addEventListener('change', function() {
+  document.getElementById('lcfsField').style.display = this.checked ? 'block' : 'none';
+});
+
+// ===================== GET INPUTS =====================
+function getInputs() {
+  const v = id => parseFloat(document.getElementById(id).value) || 0;
+  return {
+    fleetSize: v('fleetSize'),
+    convPct: parseFloat(document.getElementById('convPct').value) / 100,
+    years: Math.round(v('years')),
+    annualMiles: v('annualMiles'),
+    discountRate: parseFloat(document.getElementById('discountRate').value) / 100,
+    // Diesel
+    dieselPrice: v('dieselPrice'),
+    dieselResale: v('dieselResale'),
+    dieselMPG: v('dieselMPG'),
+    dieselFuelCost: v('dieselFuelCost'),
+    dieselMaint: v('dieselMaint'),
+    defCost: v('defCost'),
+    dieselReg: v('dieselReg'),
+    dieselIns: v('dieselIns'),
+    dieselEsc: parseFloat(document.getElementById('dieselEsc').value) / 100,
+    dieselCarbon: v('dieselCarbon'),
+    dieselIdle: v('dieselIdle'),
+    // CNG
+    cngPrice: v('cngPrice'),
+    cngResale: v('cngResale'),
+    cngMPGE: v('cngMPGE'),
+    cngFuelCost: v('cngFuelCost'),
+    cngMaint: v('cngMaint'),
+    cngReg: v('cngReg'),
+    cngIns: v('cngIns'),
+    cngEsc: parseFloat(document.getElementById('cngEsc').value) / 100,
+    infraCost: v('infraCost'),
+    infraMaint: v('infraMaint'),
+    training: v('training'),
+    incentives: v('incentives'),
+    taxCredit: v('taxCredit'),
+    // Toggles
+    useDowntime: document.getElementById('toggleDowntime').checked,
+    downtimeHrs: v('downtimeHrs'),
+    useLCFS: document.getElementById('toggleLCFS').checked,
+    lcfsVal: v('lcfsVal'),
+    useNPV: document.getElementById('toggleNPV').checked,
+  };
+}
+
+// ===================== CORE CALCULATION =====================
+function computeYearlyTCO(i) {
+  const trucks = Math.round(i.fleetSize * i.convPct);
+  const totalInitialCNG = (i.cngPrice * trucks) - (i.dieselPrice * trucks); // incremental capital
+  const totalInfra = i.infraCost + i.training;
+  const totalTaxCredit = i.taxCredit * trucks;
+  const netUpfront = totalInitialCNG + totalInfra - i.incentives - totalTaxCredit;
+
+  const yearRows = [];
+  let cumDelta = 0;
+  let cumNPV = 0;
+  let paybackYear = null;
+
+  for (let y = 1; y <= i.years; y++) {
+    const dieselFuel = (i.annualMiles / i.dieselMPG + i.dieselIdle) * i.dieselFuelCost * Math.pow(1 + i.dieselEsc, y - 1);
+    const cngFuel = (i.annualMiles / i.cngMPGE) * i.cngFuelCost * Math.pow(1 + i.cngEsc, y - 1);
+
+    // CO2: diesel ~22.4 lbs/gal, CNG ~12.7 lbs/DGE → convert to tons
+    const dieselGals = (i.annualMiles / i.dieselMPG + i.dieselIdle);
+    const cngDGE = i.annualMiles / i.cngMPGE;
+    const dieselCO2Ton = dieselGals * 22.4 / 2204.6;
+    const cngCO2Ton = cngDGE * 12.7 / 2204.6;
+
+    // Carbon tax
+    const dieselCarbonCost = i.dieselCarbon > 0 ? dieselCO2Ton * i.dieselCarbon : 0;
+
+    const dieselAnnualPerTruck = dieselFuel + i.dieselMaint + i.defCost + i.dieselReg + i.dieselIns + dieselCarbonCost;
+    let cngAnnualPerTruck = cngFuel + i.cngMaint + i.cngReg + i.cngIns + i.infraMaint / Math.max(trucks, 1);
+    if (i.useDowntime) cngAnnualPerTruck += (i.downtimeHrs * 65); // $65/hr opportunity cost
+    if (i.useLCFS) cngAnnualPerTruck -= i.lcfsVal;
+
+    const dieselTotalFleet = dieselAnnualPerTruck * trucks;
+    const cngTotalFleet = cngAnnualPerTruck * trucks;
+
+    // Add depreciation / capital recovery
+    let dieselCapRec = 0, cngCapRec = 0;
+    if (y === 1) { dieselCapRec = i.dieselPrice; cngCapRec = i.cngPrice; }
+    if (y === i.years) { dieselCapRec -= i.dieselResale; cngCapRec -= i.cngResale; }
+
+    const deltaAnnual = (dieselTotalFleet + dieselCapRec * trucks / i.years) - (cngTotalFleet + cngCapRec * trucks / i.years + (y === 1 ? netUpfront : 0));
+    cumDelta += deltaAnnual;
+    const disc = i.useNPV ? 1 / Math.pow(1 + i.discountRate, y) : 1;
+    cumNPV += deltaAnnual * disc;
+
+    if (!paybackYear && cumDelta >= 0) paybackYear = y;
+
+    yearRows.push({
+      year: y,
+      dieselTCO: (dieselTotalFleet + i.dieselPrice * trucks / i.years - (y === i.years ? i.dieselResale * trucks / i.years : 0)),
+      cngTCO: (cngTotalFleet + i.cngPrice * trucks / i.years + (y === 1 ? netUpfront / i.years : 0) - (y === i.years ? i.cngResale * trucks / i.years : 0)),
+      deltaAnnual,
+      cumDelta,
+      cumNPV,
+      co2Saved: (dieselCO2Ton - cngCO2Ton) * trucks,
+    });
+  }
+
+  // Payback interpolation
+  let payback = paybackYear;
+  if (!payback) { payback = 99; }
+  else if (payback > 1) {
+    const prev = yearRows[payback - 2];
+    const cur = yearRows[payback - 1];
+    if (prev && cur) {
+      const frac = -prev.cumDelta / (cur.cumDelta - prev.cumDelta);
+      payback = (payback - 1) + frac;
+    }
+  }
+
+  // Per-truck year-1 breakdown
+  const y1 = yearRows[0];
+  const dieselFuel1 = (i.annualMiles / i.dieselMPG + i.dieselIdle) * i.dieselFuelCost;
+  const cngFuel1 = (i.annualMiles / i.cngMPGE) * i.cngFuelCost;
+
+  return {
+    trucks,
+    netUpfront,
+    payback,
+    yearRows,
+    totalSavings: yearRows[yearRows.length - 1].cumDelta,
+    totalNPV: yearRows[yearRows.length - 1].cumNPV,
+    totalCO2: yearRows.reduce((a, r) => a + r.co2Saved, 0),
+    annualFuelSavedY1: (dieselFuel1 - cngFuel1) * trucks,
+    co2Y1: yearRows[0].co2Saved,
+    // Per truck breakdown Y1
+    breakdown: [
+      {cat: 'Fuel', diesel: dieselFuel1, cng: cngFuel1},
+      {cat: 'Maintenance', diesel: i.dieselMaint, cng: i.cngMaint},
+      {cat: 'DEF', diesel: i.defCost, cng: 0},
+      {cat: 'Registration', diesel: i.dieselReg, cng: i.cngReg},
+      {cat: 'Insurance', diesel: i.dieselIns, cng: i.cngIns},
+      {cat: 'Infra Maint (÷fleet)', diesel: 0, cng: i.infraMaint / Math.max(trucks, 1)},
+      {cat: 'LCFS Credits', diesel: 0, cng: i.useLCFS ? -i.lcfsVal : 0},
+    ],
+  };
+}
+
+// ===================== FORMAT UTILS =====================
+const fmt = n => {
+  if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+  if (Math.abs(n) >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K';
+  return '$' + n.toFixed(0);
+};
+const fmtN = n => {
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toFixed(0);
+};
+const fmtS = n => n >= 0 ? '+' + fmt(n) : fmt(n);
+
+// ===================== CHARTS =====================
+let annualChartInst = null, cashflowChartInst = null, tornadoChartInst = null;
+
+function drawAnnualChart(yearRows) {
+  const ctx = document.getElementById('annualChart').getContext('2d');
+  if (annualChartInst) annualChartInst.destroy();
+  const labels = yearRows.map(r => 'Y' + r.year);
+  annualChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {label: 'Diesel', data: yearRows.map(r => r.dieselTCO), backgroundColor: 'rgba(232,123,46,0.75)', borderRadius: 3},
+        {label: 'CNG', data: yearRows.map(r => r.cngTCO), backgroundColor: 'rgba(46,184,122,0.75)', borderRadius: 3},
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt(ctx.raw) } } },
+      scales: {
+        x: { grid: { color: '#1f262c' }, ticks: { color: '#7a8a96', font: {family: 'IBM Plex Mono', size: 11} } },
+        y: { grid: { color: '#1f262c' }, ticks: { color: '#7a8a96', font: {family: 'IBM Plex Mono', size: 11}, callback: v => fmt(v) } }
+      }
+    }
+  });
+}
+
+function drawCashflowChart(yearRows) {
+  const ctx = document.getElementById('cashflowChart').getContext('2d');
+  if (cashflowChartInst) cashflowChartInst.destroy();
+  const labels = ['Y0', ...yearRows.map(r => 'Y' + r.year)];
+  const cum = [0, ...yearRows.map(r => r.cumDelta)];
+  const colors = cum.map(v => v >= 0 ? 'rgba(46,184,122,0.8)' : 'rgba(224,82,82,0.7)');
+  cashflowChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {label: 'Cumulative Δ', data: cum, backgroundColor: colors, borderRadius: 3},
+        {label: 'Breakeven', data: labels.map(() => 0), type: 'line', borderColor: 'rgba(240,192,64,0.6)', borderDash: [5,4], pointRadius: 0, borderWidth: 1.5},
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmt(ctx.raw) } } },
+      scales: {
+        x: { grid: { color: '#1f262c' }, ticks: { color: '#7a8a96', font: {family: 'IBM Plex Mono', size: 11} } },
+        y: { grid: { color: '#1f262c' }, ticks: { color: '#7a8a96', font: {family: 'IBM Plex Mono', size: 11}, callback: v => fmt(v) } }
+      }
+    }
+  });
+}
+
+function drawTornado(i) {
+  const base = computeYearlyTCO(i);
+  const baseSav = base.totalSavings;
+  const vars = [
+    {name: 'Diesel Fuel Price', key: 'dieselFuelCost', delta: 0.5},
+    {name: 'CNG Fuel Price', key: 'cngFuelCost', delta: 0.4},
+    {name: 'Annual Miles', key: 'annualMiles', delta: 20000},
+    {name: 'Infrastructure Cost', key: 'infraCost', delta: 100000},
+    {name: 'Diesel Maintenance', key: 'dieselMaint', delta: 4000},
+    {name: 'CNG Maintenance', key: 'cngMaint', delta: 3000},
+    {name: 'Fleet Size', key: 'fleetSize', delta: 5},
+  ];
+  const computed = vars.map(v => {
+    const iHigh = {...i, [v.key]: i[v.key] + v.delta};
+    const iLow = {...i, [v.key]: i[v.key] - v.delta};
+    return {name: v.name, high: computeYearlyTCO(iHigh).totalSavings - baseSav, low: computeYearlyTCO(iLow).totalSavings - baseSav};
+  }).sort((a, b) => Math.max(Math.abs(b.high), Math.abs(b.low)) - Math.max(Math.abs(a.high), Math.abs(a.low)));
+
+  const ctx = document.getElementById('tornadoChart').getContext('2d');
+  if (tornadoChartInst) tornadoChartInst.destroy();
+  tornadoChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: computed.map(c => c.name),
+      datasets: [
+        {label: '+1σ', data: computed.map(c => c.high), backgroundColor: computed.map(c => c.high >= 0 ? 'rgba(46,184,122,0.7)' : 'rgba(224,82,82,0.7)'), borderRadius: 3},
+        {label: '-1σ', data: computed.map(c => c.low), backgroundColor: computed.map(c => c.low >= 0 ? 'rgba(46,184,122,0.4)' : 'rgba(224,82,82,0.4)'), borderRadius: 3},
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtS(ctx.raw) + ' impact' } } },
+      scales: {
+        x: { grid: { color: '#1f262c' }, ticks: { color: '#7a8a96', font: {family: 'IBM Plex Mono', size: 11}, callback: v => fmt(v) } },
+        y: { grid: { color: '#1f262c' }, ticks: { color: '#d4dce3', font: {family: 'Barlow', size: 12} } }
+      }
+    }
+  });
+}
+
+// ===================== WATERFALL =====================
+function drawWaterfall(breakdown) {
+  const container = document.getElementById('waterfallChart');
+  const totalD = breakdown.reduce((a, b) => a + b.diesel, 0);
+  const totalC = breakdown.reduce((a, b) => a + b.cng, 0);
+  const maxVal = Math.max(totalD, totalC);
+  let html = '';
+  breakdown.forEach(b => {
+    const delta = b.diesel - b.cng;
+    const pct = (Math.max(Math.abs(b.diesel), Math.abs(b.cng)) / maxVal * 100).toFixed(1);
+    const dPct = (b.diesel / maxVal * 100).toFixed(1);
+    const cPct = (b.cng / maxVal * 100).toFixed(1);
+    html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="width:120px;text-align:right;font-family:var(--mono);font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.3px">${b.cat}</div>
+      <div style="flex:1;display:flex;gap:4px;align-items:center">
+        <div style="height:20px;background:rgba(232,123,46,.3);border-radius:2px;width:${dPct}%;min-width:2px;display:flex;align-items:center;padding:0 6px">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--diesel);white-space:nowrap">${b.diesel > 0 ? fmt(b.diesel) : ''}</span>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;gap:4px;align-items:center">
+        <div style="height:20px;background:rgba(46,184,122,.3);border-radius:2px;width:${cPct}%;min-width:2px;display:flex;align-items:center;padding:0 6px">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--cng);white-space:nowrap">${b.cng > 0 ? fmt(b.cng) : (b.cng < 0 ? fmtS(b.cng) : '—')}</span>
+        </div>
+      </div>
+      <div style="min-width:70px;text-align:right;font-family:var(--mono);font-size:11px;color:${delta > 0 ? 'var(--cng)' : (delta < 0 ? 'var(--red)' : 'var(--text-dim)')}">${delta !== 0 ? fmtS(delta) : '—'}</div>
+    </div>`;
+  });
+  // Header
+  container.innerHTML = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+    <div style="width:120px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--text-dim);text-transform:uppercase">Category</div>
+    <div style="flex:1;font-family:var(--mono);font-size:9px;color:var(--diesel);text-transform:uppercase;letter-spacing:1px;padding-left:4px">Diesel Cost</div>
+    <div style="flex:1;font-family:var(--mono);font-size:9px;color:var(--cng);text-transform:uppercase;letter-spacing:1px;padding-left:4px">CNG Cost</div>
+    <div style="min-width:70px;text-align:right;font-family:var(--mono);font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px">Savings</div>
+  </div>` + html;
+}
+
+// ===================== SENSITIVITY BARS =====================
+function drawSensBars(i, result) {
+  const drawBars = (containerId, variants, label, vals) => {
+    const el = document.getElementById(containerId);
+    const max = Math.max(...vals.map(v => Math.abs(v.sav)));
+    let html = '';
+    variants.forEach((v, idx) => {
+      const pct = max > 0 ? (Math.abs(vals[idx].sav) / max * 100).toFixed(0) : 0;
+      const isPos = vals[idx].sav >= 0;
+      html += `<div class="sens-bar-wrap">
+        <span style="width:80px;font-family:var(--mono);font-size:10px;color:var(--text-dim)">${v}</span>
+        <div class="sens-bar-bg"><div class="sens-bar" style="width:${pct}%;background:${isPos ? 'var(--cng)' : 'var(--red)'}"></div></div>
+        <span class="sens-val" style="color:${isPos ? 'var(--cng)' : 'var(--red)'}">${fmt(vals[idx].sav)}</span>
+      </div>`;
+    });
+    el.innerHTML = html;
+  };
+
+  const variants_fuel = [3.50, 3.75, 4.00, 4.15, 4.50, 4.75, 5.00];
+  drawBars('fuelSens', variants_fuel.map(v => '$' + v.toFixed(2)), 'diesel', variants_fuel.map(dfc => ({sav: computeYearlyTCO({...i, dieselFuelCost: dfc}).totalSavings})));
+
+  const variants_miles = [60000, 80000, 100000, 120000, 140000, 160000, 180000];
+  drawBars('milesSens', variants_miles.map(v => (v/1000).toFixed(0) + 'K mi'), 'miles', variants_miles.map(m => ({sav: computeYearlyTCO({...i, annualMiles: m}).totalSavings})));
+
+  const variants_infra = [0, 50000, 150000, 250000, 400000, 600000, 1000000];
+  drawBars('infraSens', variants_infra.map(v => fmt(v)), 'infra', variants_infra.map(ic => ({sav: computeYearlyTCO({...i, infraCost: ic}).totalSavings})));
+
+  const variants_fleet = [2, 5, 10, 20, 50, 100];
+  drawBars('fleetSens', variants_fleet.map(v => v + ' trucks'), 'fleet', variants_fleet.map(fs => ({sav: computeYearlyTCO({...i, fleetSize: fs}).totalSavings})));
+}
+
+// Fuel matrix
+function drawFuelMatrix(i) {
+  const dieselPrices = [3.50, 4.00, 4.50, 5.00, 5.50];
+  const cngPrices = [2.00, 2.50, 3.00, 3.50, 4.00];
+  let html = `<table style="border-collapse:collapse;font-family:var(--mono);font-size:11px;width:100%">
+  <tr><th style="padding:6px 10px;color:var(--text-dim);font-weight:400;font-size:10px">D\\ CNG →</th>`;
+  cngPrices.forEach(c => html += `<th style="padding:6px 10px;color:var(--cng);font-weight:500;font-size:10px">$${c.toFixed(2)}</th>`);
+  html += '</tr>';
+  dieselPrices.forEach(d => {
+    html += `<tr><td style="padding:6px 10px;color:var(--diesel);border-bottom:1px solid #1f262c">$${d.toFixed(2)}</td>`;
+    cngPrices.forEach(c => {
+      const sav = computeYearlyTCO({...i, dieselFuelCost: d, cngFuelCost: c}).totalSavings;
+      const col = sav > 0 ? 'rgba(46,184,122,' + Math.min(0.7, sav / 2000000 * 0.7 + 0.1) + ')' : 'rgba(224,82,82,' + Math.min(0.6, Math.abs(sav) / 2000000 * 0.6 + 0.1) + ')';
+      html += `<td style="padding:6px 10px;text-align:center;background:${col};border-bottom:1px solid #1f262c;color:${sav >= 0 ? 'var(--cng)' : 'var(--red)'};">${fmt(sav)}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</table>';
+  document.getElementById('fuelMatrix').innerHTML = html;
+}
+
+// ===================== YEAR TABLE =====================
+function renderYearTable(yearRows, payback) {
+  const tbody = document.getElementById('yearBody');
+  let html = '';
+  yearRows.forEach(r => {
+    const isPayback = r.year === Math.ceil(payback) && payback < 98;
+    const cumClass = r.cumDelta >= 0 ? 'cumulative-positive' : 'cumulative-negative';
+    html += `<tr${isPayback ? ' class="payback-row"' : ''}>
+      <td>Year ${r.year}${isPayback ? ' ★ Break-Even' : ''}</td>
+      <td>${fmt(r.dieselTCO)}</td>
+      <td>${fmt(r.cngTCO)}</td>
+      <td style="color:${r.deltaAnnual >= 0 ? 'var(--cng)' : 'var(--red)'}">${fmtS(r.deltaAnnual)}</td>
+      <td class="${cumClass}">${fmtS(r.cumDelta)}</td>
+      <td style="color:var(--accent)">${fmtS(r.cumNPV)}</td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+// ===================== BREAKDOWN TABLE =====================
+function renderBreakdown(breakdown) {
+  const tbody = document.getElementById('breakdownBody');
+  let totalD = 0, totalC = 0;
+  let html = '';
+  breakdown.forEach(b => {
+    const delta = b.diesel - b.cng;
+    totalD += b.diesel;
+    totalC += b.cng;
+    html += `<tr>
+      <td>${b.cat}</td>
+      <td class="td-diesel">${b.diesel > 0 ? fmt(b.diesel) : '—'}</td>
+      <td class="td-cng">${b.cng > 0 ? fmt(b.cng) : (b.cng < 0 ? fmtS(b.cng) : '—')}</td>
+      <td class="${delta > 0 ? 'td-save' : (delta < 0 ? 'td-neg' : '')}">${delta !== 0 ? fmtS(delta) : '—'}</td>
+    </tr>`;
+  });
+  html += `<tr class="total-row">
+    <td>TOTAL / TRUCK / YR</td>
+    <td class="td-diesel">${fmt(totalD)}</td>
+    <td class="td-cng">${fmt(totalC)}</td>
+    <td class="${totalD - totalC > 0 ? 'td-save' : 'td-neg'}">${fmtS(totalD - totalC)}</td>
+  </tr>`;
+  tbody.innerHTML = html;
+}
+
+// ===================== MAIN CALC =====================
+function calc() {
+  const i = getInputs();
+  const r = computeYearlyTCO(i);
+
+  // KPIs
+  document.getElementById('kpiSavings').textContent = fmt(r.totalSavings);
+  document.getElementById('kpiSavingsSub').textContent = `over ${i.years} years, ${r.trucks} trucks`;
+  document.getElementById('kpiPayback').textContent = r.payback >= 99 ? '> ' + i.years + ' yr' : r.payback.toFixed(1) + ' yr';
+  document.getElementById('kpiCO2').textContent = fmtN(r.totalCO2) + 't';
+
+  // Strip
+  document.getElementById('stripTrucks').textContent = r.trucks;
+  document.getElementById('stripMiles').textContent = fmtN(i.annualMiles * r.trucks);
+  document.getElementById('stripFuel').textContent = fmt(r.annualFuelSavedY1);
+  document.getElementById('stripCO2').textContent = fmtN(r.co2Y1) + 't';
+  document.getElementById('stripNPV').textContent = fmt(r.totalNPV);
+
+  // Charts
+  drawAnnualChart(r.yearRows);
+  drawCashflowChart(r.yearRows);
+  drawWaterfall(r.breakdown);
+  renderBreakdown(r.breakdown);
+  renderYearTable(r.yearRows, r.payback);
+  drawTornado(i);
+  drawSensBars(i, r);
+  drawFuelMatrix(i);
+}
+
+// ===================== IMPORT HANDLERS =====================
+function handleFileUpload(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => parseCSV(e.target.result, file.name);
+  reader.readAsText(file);
+}
+
+function parsePaste() {
+  const text = document.getElementById('pasteArea').value;
+  if (!text.trim()) return;
+  parseCSV(text, 'pasted data');
+  document.getElementById('pasteSummary').style.display = 'block';
+}
+
+function parseCSV(text, fname) {
+  try {
+    const lines = text.trim().split('\n').filter(l => l.trim());
+    if (lines.length < 2) throw new Error('Need header + at least 1 data row');
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'));
+    const rows = lines.slice(1).map(l => {
+      const vals = l.split(',');
+      const obj = {};
+      headers.forEach((h, i) => obj[h] = parseFloat(vals[i]) || 0);
+      return obj;
+    });
+
+    // Try to detect and apply columns
+    let applied = [];
+    const avg = key => rows.reduce((a, r) => a + (r[key] || 0), 0) / rows.length;
+    const has = key => headers.some(h => h.includes(key));
+
+    if (has('miles') || has('mileage') || has('odometer')) {
+      const key = headers.find(h => h.includes('miles') || h.includes('mileage') || h.includes('odo'));
+      const val = avg(key);
+      if (val > 1000) { document.getElementById('annualMiles').value = Math.round(val); applied.push('miles/yr: ' + Math.round(val).toLocaleString()); }
+    }
+    if (has('fuel_gall') || has('gallons') || has('fuel_qty')) {
+      const key = headers.find(h => h.includes('gall') || h.includes('fuel_qty'));
+      const val = avg(key);
+      if (val > 100) {
+        const mpg = (parseFloat(document.getElementById('annualMiles').value) / val).toFixed(1);
+        document.getElementById('dieselMPG').value = mpg;
+        applied.push('diesel MPG: ' + mpg);
+      }
+    }
+    if (has('fuel_cost') || has('fuel_spend') || has('fuel_amount')) {
+      const key = headers.find(h => h.includes('fuel_cost') || h.includes('fuel_spend') || h.includes('fuel_amount'));
+      const val = avg(key);
+      if (val > 1000) {
+        const gals = rows.reduce((a, r) => {
+          const gkey = headers.find(h => h.includes('gall') || h.includes('fuel_qty'));
+          return a + (gkey ? r[gkey] : 0);
+        }, 0) / rows.length;
+        if (gals > 100) {
+          const ppg = (val / gals).toFixed(2);
+          document.getElementById('dieselFuelCost').value = ppg;
+          applied.push('diesel $/gal: $' + ppg);
+        }
+      }
+    }
+    if (has('maint') || has('repair') || has('service')) {
+      const key = headers.find(h => h.includes('maint') || h.includes('repair') || h.includes('service'));
+      const val = avg(key);
+      if (val > 500) { document.getElementById('dieselMaint').value = Math.round(val); applied.push('maintenance: ' + Math.round(val).toLocaleString()); }
+    }
+    if (has('fleet_size') || has('trucks') || has('vehicles')) {
+      const key = headers.find(h => h.includes('fleet') || h.includes('trucks') || h.includes('vehicles'));
+      const val = rows[0][key];
+      if (val > 0) { document.getElementById('fleetSize').value = Math.round(val); applied.push('fleet size: ' + Math.round(val)); }
+    }
+
+    const statusEl = document.getElementById(currentImportType === 'paste' ? 'pasteStatus' : 'parseStatus');
+    const summaryEl = document.getElementById(currentImportType === 'paste' ? 'pasteSummary' : 'importSummary');
+    statusEl.className = 'parse-status ok';
+    statusEl.textContent = `✓ Parsed ${rows.length} rows from ${fname}`;
+    statusEl.style.display = 'block';
+
+    if (applied.length > 0) {
+      summaryEl.style.display = 'block';
+      summaryEl.innerHTML = '<strong>Applied from import:</strong><br>' + applied.map(a => '• ' + a).join('<br>');
+    } else {
+      summaryEl.style.display = 'block';
+      summaryEl.innerHTML = '<strong>Columns found:</strong> ' + headers.join(', ') + '<br><span style="color:var(--warn)">No matching columns auto-applied. Check column names match template.</span>';
+    }
+    calc();
+  } catch (err) {
+    const statusEl = document.getElementById('parseStatus');
+    statusEl.className = 'parse-status err';
+    statusEl.textContent = '✗ Parse error: ' + err.message;
+    statusEl.style.display = 'block';
+  }
+}
+
+function simulateTelematicsPull() {
+  const provider = document.querySelector('#importTelematics select').value;
+  if (!provider) { alert('Please select a telematics provider.'); return; }
+  const statusEl = document.getElementById('telStatus');
+  const summaryEl = document.getElementById('telSummary');
+  statusEl.className = 'parse-status ok';
+  statusEl.textContent = '⟳ Connecting to ' + provider + '...';
+  statusEl.style.display = 'block';
+  // Simulate pull with realistic fleet data
+  setTimeout(() => {
+    const simData = {samsara: {miles: 124800, mpg: 6.3, maint: 19200}, geotab: {miles: 118500, mpg: 6.6, maint: 17800}, verizon: {miles: 132000, mpg: 6.1, maint: 20100}, omnitracs: {miles: 109000, mpg: 6.8, maint: 16500}, peoplenet: {miles: 126400, mpg: 6.4, maint: 18600}};
+    const d = simData[provider] || {miles: 120000, mpg: 6.5, maint: 18000};
+    document.getElementById('annualMiles').value = d.miles;
+    document.getElementById('dieselMPG').value = d.mpg;
+    document.getElementById('dieselMaint').value = d.maint;
+    statusEl.textContent = `✓ ${provider.charAt(0).toUpperCase() + provider.slice(1)} data loaded successfully`;
+    summaryEl.style.display = 'block';
+    summaryEl.innerHTML = `<strong>Telematics Import:</strong><br>• Avg miles/yr/truck: <strong>${d.miles.toLocaleString()}</strong><br>• Avg fuel economy: <strong>${d.mpg} mpg</strong><br>• Avg annual maintenance: <strong>$${d.maint.toLocaleString()}</strong>`;
+    calc();
+  }, 1200);
+}
+
+function handleFuelCardUpload(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    // Simulate fuel card parsing
+    const fcStatus = document.getElementById('fcStatus');
+    const fcSummary = document.getElementById('fcSummary');
+    fcStatus.className = 'parse-status ok';
+    fcStatus.textContent = '✓ Fuel card data parsed: ' + file.name;
+    fcSummary.style.display = 'block';
+    fcSummary.innerHTML = `<strong>Fuel Card Analysis:</strong><br>• Estimated annual spend: <strong>$76,400/truck</strong><br>• Avg $/gallon: <strong>$4.12</strong><br>• Est. annual gallons: <strong>18,544/truck</strong>`;
+    document.getElementById('dieselFuelCost').value = 4.12;
+    calc();
+  };
+  reader.readAsText(file);
+}
+
+function prefillTelematics(provider) {
+  // Just UI feedback
+}
+function prefillFuelCard(network) { }
+
+function downloadTemplate() {
+  const csv = `truck_id,miles_per_year,fuel_gallons,fuel_cost,maintenance_cost,def_cost,insurance,registration
+T001,120000,18461,76068,18000,2200,8500,1800
+T002,115000,17692,72936,17500,2100,8500,1800
+T003,128000,19692,81191,19000,2300,8500,1800
+T004,110000,16923,69778,17000,2000,8500,1800
+T005,135000,20769,85672,20000,2400,8500,1800`;
+  const blob = new Blob([csv], {type: 'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fleetshift_template.csv';
+  a.click();
+}
+
+// Drag and drop
+const dropZone = document.getElementById('dropZone');
+if (dropZone) {
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = ev => parseCSV(ev.target.result, file.name);
+      reader.readAsText(file);
+    }
+  });
+}
+
+// Load Chart.js from CDN
+const chartScript = document.createElement('script');
+chartScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js';
+chartScript.onload = () => {
+  Chart.defaults.color = '#7a8a96';
+  Chart.defaults.borderColor = '#252d34';
+  Chart.defaults.font.family = 'Barlow';
+  calc();
+};
+document.head.appendChild(chartScript);
+
+// Init section for first import type
+setImportType('excel');
+</script>
+</body>
+</html>
